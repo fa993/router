@@ -7,6 +7,7 @@ use std::{
 };
 
 use actix::prelude::*;
+use log::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -67,14 +68,11 @@ impl Handler<PubMsg> for RouterTransmitter {
 
     fn handle(&mut self, msg: PubMsg, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(t) = self.waiting.get_mut(&msg.to) {
-            println!("Waiting");
+            debug!("Pushing to Publish to Queue {msg:?}");
             t.push(msg);
         } else if let Some(t) = self.inner.routes.get(&msg.to) {
-            println!("Not Waiting");
+            debug!("Publishing {msg:?}");
             for k in t.value() {
-                // if self.inner.self_id == 3 {
-                //     println!("pub loop {:?}", k);
-                // }
                 let s = self.inner.sinks.get(k.value()).unwrap();
                 let _ = s.value().try_handle(Packet {
                     id: Uuid::new_v4(),
@@ -84,7 +82,6 @@ impl Handler<PubMsg> for RouterTransmitter {
                 });
             }
         }
-        println!("Nothing");
     }
 }
 
@@ -137,7 +134,7 @@ impl Handler<SubAck> for RouterTransmitter {
     type Result = ();
 
     fn handle(&mut self, msg: SubAck, ctx: &mut Self::Context) -> Self::Result {
-        println!("asddsadsads");
+        debug!("Propogating SubAck Upstream {msg:?}");
         self.waiting
             .remove(&msg.on)
             .map_or(Vec::new(), |f| f)

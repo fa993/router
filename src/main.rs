@@ -10,6 +10,8 @@ pub mod transmitter;
 
 #[actix_rt::main]
 async fn main() {
+    pretty_env_logger::init();
+
     println!("Hello World");
 
     let r1 = Router::new_test(1);

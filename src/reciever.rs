@@ -2,6 +2,7 @@ use std::sync::{atomic::AtomicUsize, Arc};
 
 use actix::prelude::*;
 use crossbeam_skiplist::SkipSet;
+use log::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -30,7 +31,7 @@ impl Handler<Packet> for RouterReciever {
     type Result = ();
 
     fn handle(&mut self, msg: Packet, _ctx: &mut Self::Context) -> Self::Result {
-        println!("{} {:?}", self.inner.self_id, msg);
+        debug!("{} {msg:?}", self.inner.self_id);
         //handle based on type
         //if msg is pub and no entry in rounting table or is not self drop message
         match &msg.p_type {
@@ -91,17 +92,13 @@ impl Handler<Packet> for RouterReciever {
                     if *yesno {
                         let val = self.inner.routes.get_or_insert(msg.wire, SkipSet::new());
                         val.value().insert(msg.from);
-                        println!("{:?}", val.value().get(&msg.from));
-                        // if self.inner.self_id == 3 {
-                        //     println!("{:?}", val.value().iter().collect::<Vec<_>>());
-                        // }
+                        debug!("Creating Route to {:?}", val.value().get(&msg.from));
                     }
                     let yt = self.inner.ack_table.get(&id).unwrap();
                     yt.value().fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
                     if yt.value().load(std::sync::atomic::Ordering::SeqCst) == 0 {
                         self.inner.sub_table.remove(id);
                         //send subrelease message
-                        println!("Helldfsfo");
                         let _ = self.rou_rec.try_handle(SubAck { on: msg.wire });
                     }
                     return;
@@ -137,10 +134,6 @@ impl Handler<Packet> for RouterReciever {
                     ent.value()
                         .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
                     if ent.value().load(std::sync::atomic::Ordering::SeqCst) == 0 {
-                        println!(
-                            "{:?}",
-                            ent.value().load(std::sync::atomic::Ordering::SeqCst)
-                        );
                         ent.remove();
                         let backroute = self.inner.sub_table.remove(&id).unwrap();
                         let _ = self
