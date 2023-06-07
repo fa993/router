@@ -46,7 +46,7 @@ impl Handler<Packet> for RouterReciever {
                         });
                     }
                 }
-                if self.inner.channels.contains_key(&msg.wire) {
+                if self.inner.channels.contains(&msg.wire) {
                     //TODO
                     let _ = self.self_rec.try_handle(payload.into());
                 }
@@ -54,7 +54,7 @@ impl Handler<Packet> for RouterReciever {
             PacketType::Sub(se, ch) => {
                 //sub is always passed along
                 if self.inner.sinks.len() == 1 {
-                    if self.inner.channels.contains_key(&ch) {
+                    if self.inner.channels.contains(&ch) {
                         //add in routing table
                         let val = self.inner.routes.get_or_insert(*ch, SkipSet::new());
                         val.value().insert(msg.from);
@@ -69,7 +69,7 @@ impl Handler<Packet> for RouterReciever {
                         .value()
                         .try_handle(self.message(
                             *ch,
-                            PacketType::SubAck(msg.id, *se, self.inner.channels.contains_key(&ch)),
+                            PacketType::SubAck(msg.id, *se, self.inner.channels.contains(&ch)),
                         ));
                 } else {
                     self.inner.sub_table.insert(msg.id, msg.from);
@@ -104,7 +104,7 @@ impl Handler<Packet> for RouterReciever {
                     return;
                 }
 
-                if *yesno || self.inner.channels.contains_key(&msg.wire) {
+                if *yesno || self.inner.channels.contains(&msg.wire) {
                     let vs = self.inner.routes.get_or_insert(msg.wire, SkipSet::new());
 
                     if *yesno {
@@ -115,9 +115,7 @@ impl Handler<Packet> for RouterReciever {
                     if let Some(ent) = self.inner.ack_table.remove(&id) {
                         let backroute = self.inner.sub_table.remove(id).unwrap();
 
-                        if *yesno {
-                            vs.value().insert(*backroute.value());
-                        }
+                        vs.value().insert(*backroute.value());
 
                         let _ = self
                             .inner
@@ -151,10 +149,10 @@ impl Handler<Packet> for RouterReciever {
             PacketType::UnSub => {
                 //if you see an unsub that means you look at router table and invalidate that route
                 let y = self.inner.routes.get(&msg.wire).unwrap();
-                if y.value().len() > 1 || self.inner.channels.contains_key(&msg.wire) {
+                if y.value().len() > 1 || self.inner.channels.contains(&msg.wire) {
                     //means kill unsub at this node
                 } else {
-                    //propogate unusub
+                    //propogate unusub and kill entry in routing table
                     for i in &self.inner.sinks {
                         if *i.key() == msg.from {
                             continue;

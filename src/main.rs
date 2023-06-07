@@ -53,6 +53,18 @@ async fn main() {
 
     r3.publish("Hello to you too good sir", wi).await.unwrap();
 
+    r5.publish("Yolo", wi).await.unwrap();
+
+    r3.unsub(wi).await.unwrap();
+
+    r5.publish("Yolo2", wi).await.unwrap();
+
+    r3.sub(wi).await.unwrap();
+
+    r5.unsub(wi).await.unwrap();
+
+    r1.publish("Hehe", wi).await.unwrap();
+
     // rou2.send();
 
     //test with 2 router instances and see if messages message or not

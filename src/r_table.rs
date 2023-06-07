@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicU32, AtomicUsize},
-    Arc,
-};
+use std::sync::{atomic::AtomicUsize, Arc};
 
 use crate::handler::PacketHandler;
 
@@ -54,7 +51,7 @@ impl Message for Packet {
 pub struct RoutingTable {
     pub self_id: ServiceId,
     pub sinks: SkipMap<ServiceId, Arc<PacketHandler>>,
-    pub channels: SkipMap<ChannelId, AtomicU32>,
+    pub channels: SkipSet<ChannelId>,
     pub sub_table: SkipMap<PacketId, ServiceId>,
     pub ack_table: SkipMap<PacketId, AtomicUsize>,
     pub routes: SkipMap<ChannelId, SkipSet<ServiceId>>,

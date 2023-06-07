@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, error::Error};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use actix::prelude::*;
 use uuid::Uuid;
@@ -7,7 +7,7 @@ use crate::{
     handler::{ActixPacketRecipient, ActixRecipient, PacketHandler},
     r_table::{ChannelId, RoutingTable, ServiceId},
     reciever::RouterReciever,
-    transmitter::{Payload, PubMsg, RouterTransmitter, SubMsg},
+    transmitter::{Payload, PubMsg, RouterTransmitter, SubMsg, UnsubMsg},
 };
 
 pub struct Router {
@@ -57,6 +57,10 @@ impl Router {
             .map_err(|f| f.into())
     }
 
+    pub async fn unsub(&self, on: ChannelId) -> Result<(), Box<dyn Error>> {
+        self.tx.send(UnsubMsg { on }).await.map_err(|f| f.into())
+    }
+
     pub fn add_entry(&self, for_service: ServiceId, handler: Arc<PacketHandler>) {
         self.src.sinks.insert(for_service, handler);
     }
@@ -84,36 +88,3 @@ impl Handler<Payload> for Printer {
         println!("{} got {:?}", self.c, msg);
     }
 }
-
-// pub struct RoutingLayer;
-
-// impl RoutingLayer {
-//     pub fn new(
-//         c: u32,
-//     ) -> (
-//         Arc<RoutingTable>,
-//         Addr<RouterReciever>,
-//         Addr<RouterTransmitter>,
-//     ) {
-//         let rt = Arc::new(RoutingTable::with_id(Uuid::new_v4()));
-//         // let rt = Arc::new(RoutingTable::with_id(c));
-
-//         let ad = Printer { c }.start();
-//         let add = ad.recipient();
-
-//         let rou = RouterTransmitter {
-//             inner: rt.clone(),
-//             waiting: HashMap::default(),
-//         };
-//         let ar = rou.start();
-//         let ar2 = ar.clone();
-
-//         let rts = RouterReciever {
-//             self_rec: add,
-//             inner: rt.clone(),
-//             rou_rec: ar.recipient(),
-//         };
-
-//         (rt, rts.start(), ar2)
-//     }
-// }
