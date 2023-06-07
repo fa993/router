@@ -104,17 +104,19 @@ impl Handler<UnsubMsg> for RouterTransmitter {
             if t.value().len() == 1 {
                 //propogate unsub and remove entry
                 // self.tx.send()
-                let val = self.inner.sinks.get(t.value().front().unwrap().value()).unwrap();
+                let val = self
+                    .inner
+                    .sinks
+                    .get(t.value().front().unwrap().value())
+                    .unwrap();
                 let p = Packet {
                     from: self.inner.self_id.clone(),
                     id: Uuid::new_v4(),
                     p_type: PacketType::UnSub,
-                    wire: msg.on
+                    wire: msg.on,
                 };
                 debug!("Actually propogating unsub {p:?}");
-                let _ = val.value().try_handle(
-                    p
-                );
+                let _ = val.value().try_handle(p);
             }
         }
     }
