@@ -36,7 +36,7 @@ impl Router {
             rt.clone(),
             Box::new(ActixRecipient::new(ar.recipient())),
         );
-        
+
         Self {
             src: rt,
             tx: ar2,

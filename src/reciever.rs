@@ -155,7 +155,7 @@ impl RouterReciever {
         }
     }
 
-    fn handle_unsub(&mut self, msg: IncommingPacket) {
+    fn handle_unsub(&self, msg: &IncommingPacket) {
         //if you see an unsub that means you look at router table and invalidate that route
         let y = self.inner.routes.get(&msg.wire).unwrap();
         if y.value().len() > 1 || self.inner.channels.contains(&msg.wire) {
@@ -171,16 +171,8 @@ impl RouterReciever {
         }
         y.value().remove(&msg.from);
     }
-}
 
-impl Actor for RouterReciever {
-    type Context = Context<Self>;
-}
-
-impl Handler<IncommingPacket> for RouterReciever {
-    type Result = ();
-
-    fn handle(&mut self, msg: IncommingPacket, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle_packet(&self, msg: &IncommingPacket) {
         debug!("{} {msg:?}", self.inner.self_id);
         //handle based on type
         //if msg is pub and no entry in rounting table or is not self drop message
@@ -195,8 +187,20 @@ impl Handler<IncommingPacket> for RouterReciever {
                 self.handle_sub_ack(&msg, id, se, *yesno);
             }
             PacketType::UnSub => {
-                self.handle_unsub(msg);
+                self.handle_unsub(&msg);
             }
         };
+    }
+}
+
+impl Actor for RouterReciever {
+    type Context = Context<Self>;
+}
+
+impl Handler<IncommingPacket> for RouterReciever {
+    type Result = ();
+
+    fn handle(&mut self, msg: IncommingPacket, _ctx: &mut Self::Context) -> Self::Result {
+        self.handle_packet(&msg);
     }
 }
