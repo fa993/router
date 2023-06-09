@@ -2,13 +2,13 @@ use std::{error::Error, fmt::Debug};
 
 use actix::Recipient;
 
-use crate::r_table::Packet;
+use crate::r_table::IncommingPacket;
 
 pub trait MessageHandler<T>: Debug + Sync + Send {
     fn try_handle(&self, p: T) -> Result<(), Box<dyn Error>>;
 }
 
-pub type PacketHandler = dyn MessageHandler<Packet>;
+pub type PacketHandler = dyn MessageHandler<IncommingPacket>;
 
 #[derive(Debug)]
 pub struct ActixRecipient<T: actix::Message + Send + Sync + Debug>
@@ -36,4 +36,4 @@ where
     }
 }
 
-pub type ActixPacketRecipient = ActixRecipient<Packet>;
+pub type ActixPacketRecipient = ActixRecipient<IncommingPacket>;

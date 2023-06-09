@@ -31,11 +31,12 @@ impl Router {
         let ar = rou.start();
         let ar2 = ar.clone();
 
-        let rts = RouterReciever {
-            self_rec: Box::new(ActixRecipient::new(add)),
-            inner: rt.clone(),
-            rou_rec: Box::new(ActixRecipient::new(ar.recipient())),
-        };
+        let rts = RouterReciever::new(
+            Box::new(ActixRecipient::new(add)),
+            rt.clone(),
+            Box::new(ActixRecipient::new(ar.recipient())),
+        );
+        
         Self {
             src: rt,
             tx: ar2,

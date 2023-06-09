@@ -19,7 +19,7 @@ pub enum PacketType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Packet {
+pub struct IncommingPacket {
     pub id: PacketId,
     pub wire: ChannelId,
     //immediate sender
@@ -27,15 +27,15 @@ pub struct Packet {
     pub p_type: PacketType,
 }
 
-impl Packet {
-    pub fn copy(&self, sen: ServiceId) -> Packet {
+impl IncommingPacket {
+    pub fn copy(&self, sen: ServiceId) -> IncommingPacket {
         let mut p = self.clone();
         p.id = self.id;
         p.from = sen;
         p
     }
 
-    pub fn repeat(&self, sen: ServiceId) -> Packet {
+    pub fn repeat(&self, sen: ServiceId) -> IncommingPacket {
         let mut p = self.clone();
         p.id = Uuid::new_v4();
         p.from = sen;
@@ -43,7 +43,7 @@ impl Packet {
     }
 }
 
-impl Message for Packet {
+impl Message for IncommingPacket {
     type Result = ();
 }
 

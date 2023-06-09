@@ -8,7 +8,7 @@ use log::debug;
 use uuid::Uuid;
 
 use crate::{
-    r_table::{ChannelId, Packet, PacketType, RoutingTable},
+    r_table::{ChannelId, IncommingPacket, PacketType, RoutingTable},
     reciever::SubAck,
 };
 
@@ -80,7 +80,7 @@ impl Handler<PubMsg> for RouterTransmitter {
             debug!("Publishing {msg:?}");
             for k in t.value() {
                 let s = self.inner.sinks.get(k.value()).unwrap();
-                let _ = s.value().try_handle(Packet {
+                let _ = s.value().try_handle(IncommingPacket {
                     id: Uuid::new_v4(),
                     wire: msg.to,
                     from: self.inner.self_id,
@@ -109,7 +109,7 @@ impl Handler<UnsubMsg> for RouterTransmitter {
                     .sinks
                     .get(t.value().front().unwrap().value())
                     .unwrap();
-                let p = Packet {
+                let p = IncommingPacket {
                     from: self.inner.self_id.clone(),
                     id: Uuid::new_v4(),
                     p_type: PacketType::UnSub,
@@ -141,7 +141,7 @@ impl Handler<SubMsg> for RouterTransmitter {
         self.inner.channels.insert(msg.on);
         self.waiting.insert(msg.on, Vec::new());
 
-        let sb = Packet {
+        let sb = IncommingPacket {
             from: self.inner.self_id,
             id: Uuid::new_v4(),
             p_type: PacketType::Sub(self.inner.self_id, msg.on),
