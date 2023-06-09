@@ -102,6 +102,7 @@ impl RouterRx {
                 //add in routing table
                 let val = self.inner.table.routes.get_or_insert(*ch, SkipSet::new());
                 val.value().insert(msg.from);
+                debug!("Creating Route to {:?}", val.value().get(&msg.from));
             }
 
             //send suback back

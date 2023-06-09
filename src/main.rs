@@ -1,8 +1,10 @@
-use tokio::sync::mpsc;
+use std::time::Duration;
+
+use tokio::time::interval;
 
 use crate::{
-    r_table::{ChannelId, Randomable, RoutingTable, ServiceId},
-    reciever::RouterRx,
+    r_table::{ChannelId, Randomable},
+    router::Router,
 };
 
 pub mod r_table;
@@ -10,39 +12,69 @@ pub mod reciever;
 pub mod router;
 pub mod transmitter;
 
-// #[actix_rt::main]
-fn main() {
+#[tokio::main]
+async fn main() {
     pretty_env_logger::init();
 
     println!("Hello World");
 
-    let rt = RoutingTable::default();
+    // let rt = RoutingTable::default();
 
-    let (tx, rx) = mpsc::unbounded_channel();
+    // let (tx, rx) = mpsc::unbounded_channel();
 
-    let (mut rr, ptx) = RouterRx::new(ServiceId::get_random(), rt, tx);
+    // let (mut rr, ptx) = RouterRx::new(ServiceId::get_random(), rt, tx);
 
-    let ro = rr.create_tx();
-    let r1 = ro.clone();
-    tokio::spawn(async move {
-        rr.recv_packets().await;
+    // let ro = rr.create_tx();
+    // let r1 = ro.clone();
+    // tokio::spawn(async move {
+    //     rr.recv_packets().await;
+    // });
+
+    // tokio::spawn(async move {
+    //     r1.handle_msg(reciever::OutgoingMessage::Pub(
+    //         "Hello World".to_string(),
+    //         ChannelId::get_random(),
+    //     ))
+    //     .await;
+    // });
+
+    // tokio::spawn(async move {
+    //     ro.handle_msg(reciever::OutgoingMessage::Pub(
+    //         "Hello World".to_string(),
+    //         ChannelId::get_random(),
+    //     ))
+    //     .await;
+    // });
+
+    let r1 = Router::new_test(1);
+
+    let r2 = Router::new_test(2);
+
+    r1.connect_to(&r2);
+
+    let wi = ChannelId::get_random();
+
+    r1.sender.send_sub_msg(wi);
+
+    r2.sender.send_sub_msg(wi);
+
+    let handle = tokio::spawn(async move {
+        r1.sender.send_pub_msg(wi, "Hello World").await;
     });
 
-    tokio::spawn(async move {
-        r1.handle_msg(reciever::OutgoingMessage::Pub(
-            "Hello World".to_string(),
-            ChannelId::get_random(),
-        ))
-        .await;
-    });
+    let _ = handle.await;
 
-    tokio::spawn(async move {
-        ro.handle_msg(reciever::OutgoingMessage::Pub(
-            "Hello World".to_string(),
-            ChannelId::get_random(),
-        ))
-        .await;
-    });
+    let mut inter = interval(Duration::from_secs(2));
+
+    inter.tick().await;
+
+    r2.sender.send_pub_msg(wi, "Hello world").await;
+
+    let mut inter = interval(Duration::from_secs(2));
+
+    inter.tick().await;
+
+    // r1.sender.send_pub_msg(wi, "Hello World").await;
 
     // tokio::spawn(async {
     //     ro.send_pub_msg(Uuid::new_v4(), "Hello world");

@@ -1,11 +1,78 @@
-use std::{collections::HashMap, error::Error, sync::Arc};
+use tokio::sync::mpsc::{self, UnboundedSender};
 
-// use crate::{
-//     handler::{ActixPacketRecipient, ActixRecipient, PacketHandler},
-//     r_table::{ChannelId, RoutingTable, ServiceId},
-//     reciever::RouterReciever,
-//     transmitter::{Payload, PubMsg, RouterTransmitter, SubMsg, UnsubMsg},
-// };
+use crate::{
+    r_table::{Packet, RoutingTable},
+    reciever::RouterRx,
+    transmitter::RouterTx,
+};
+
+pub struct Router {
+    pub ptx: UnboundedSender<Packet>,
+    pub sender: RouterTx,
+}
+
+impl Router {
+    // pub fn new<T>(c: u32, t: T) where T: Future + Send + 'static {
+
+    // }
+
+    pub fn new_test(c: u32) -> Router {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Some(t) = rx.recv().await {
+                println!("{c} got payload {t}");
+            }
+        });
+        let (mut rr, ptx) = RouterRx::new(c, RoutingTable::default(), tx);
+        let rtx = rr.create_tx();
+
+        tokio::spawn(async move {
+            rr.recv_packets().await;
+        });
+
+        Self { ptx, sender: rtx }
+    }
+
+    //this is both ways
+    pub fn connect_to(&self, other: &Router) {
+        self.sender
+            .inner()
+            .sinks
+            .insert(other.sender.inner().self_id.clone(), other.ptx.clone());
+        other
+            .sender
+            .inner()
+            .sinks
+            .insert(self.sender.inner().self_id.clone(), self.ptx.clone());
+
+        // println!("{:?}", self.rx.inner().sinks.len())
+    }
+
+    // pub fn publish(&self, wire: ChannelId, payload: String) {
+    //     let _ = self.send(OutgoingMessage::Pub(payload, wire));
+    // }
+
+    // pub fn sub(&self, wire: ChannelId) {
+    //     let _ = self.sender.send(OutgoingMessage::Sub(wire));
+    // }
+
+    // pub fn unsub(&self, wire: ChannelId) {
+    //     let _ = self.sender.send(OutgoingMessage::Unsub(wire));
+    // }
+}
+
+// pub fn setup_testing_router(c: u32) -> (mpsc::Sender<OutgoingMessage>) {
+//     let (tx, mut rx) = mpsc::unbounded_channel();
+//     tokio::spawn(async move {
+//         while let Some(t) = rx.recv().await {
+//             println!("{c} got payload {t}");
+//         }
+//     });
+//     let (rr, ptx) = RouterRx::new(ChannelId::get_random(), RoutingTable::default(), tx);
+
+//     todo!()
+
+// }
 
 // pub struct Router {
 //     src: Arc<RoutingTable>,

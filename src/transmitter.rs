@@ -15,20 +15,24 @@ pub struct RouterTx {
 }
 
 impl RouterTx {
-    pub async fn handle_msg(&self, t: OutgoingMessage) {
-        match t {
-            OutgoingMessage::Pub(f, t) => self.send_pub_msg(t, &f).await,
-            OutgoingMessage::Sub(t) => self.send_sub_msg(t),
-            OutgoingMessage::Unsub(t) => self.send_unsub_msg(t),
-        }
-    }
-
     fn packet(&self, to: ChannelId, msg_type: PacketType) -> Packet {
         Packet {
             id: PacketId::get_random(),
             wire: to,
             from: self.inner.self_id,
             p_type: msg_type,
+        }
+    }
+
+    pub fn inner(&self) -> Arc<RouterInner> {
+        self.inner.clone()
+    }
+
+    pub async fn handle_msg(&self, t: OutgoingMessage) {
+        match t {
+            OutgoingMessage::Pub(f, t) => self.send_pub_msg(t, &f).await,
+            OutgoingMessage::Sub(t) => self.send_sub_msg(t),
+            OutgoingMessage::Unsub(t) => self.send_unsub_msg(t),
         }
     }
 

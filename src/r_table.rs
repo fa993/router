@@ -1,13 +1,12 @@
 use crossbeam_queue::SegQueue;
+use crossbeam_skiplist::{SkipMap, SkipSet};
 use std::sync::atomic::AtomicUsize;
 use tokio::sync::{mpsc, RwLock};
-// use crate::handler::PacketHandler;
-use crossbeam_skiplist::{SkipMap, SkipSet};
 use uuid::Uuid;
 
 pub type PacketId = Uuid;
 pub type ChannelId = Uuid;
-pub type ServiceId = Uuid;
+pub type ServiceId = u32;
 
 pub trait Randomable {
     fn get_random() -> Self;
