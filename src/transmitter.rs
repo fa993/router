@@ -1,106 +1,62 @@
-use std::{
-    collections::HashMap,
-    sync::{atomic::AtomicUsize, Arc},
-};
+use std::sync::{atomic::AtomicUsize, Arc};
 
-use actix::prelude::*;
+use crossbeam_queue::SegQueue;
 use log::debug;
-use uuid::Uuid;
+use tokio::sync::{mpsc, RwLock};
 
 use crate::{
-    r_table::{ChannelId, IncommingPacket, PacketType, RoutingTable},
-    reciever::SubAck,
+    r_table::{ChannelId, Packet, PacketType, Randomable, RouterInner},
+    reciever::OutgoingMessage,
 };
 
-#[derive(Debug, Clone)]
-pub struct Payload {
-    pub msg: String,
+pub struct RouterTx {
+    pub(crate) inner: Arc<RouterInner>,
+    pub(crate) msg_stream: mpsc::UnboundedReceiver<OutgoingMessage>,
 }
 
-impl From<String> for Payload {
-    fn from(value: String) -> Self {
-        Self { msg: value }
-    }
-}
-
-impl From<&String> for Payload {
-    fn from(value: &String) -> Self {
-        Self { msg: value.clone() }
-    }
-}
-
-impl From<&str> for Payload {
-    fn from(value: &str) -> Self {
-        Self {
-            msg: value.to_string(),
-        }
-    }
-}
-
-impl Message for Payload {
-    type Result = ();
-}
-
-#[derive(Debug)]
-pub struct PubMsg {
-    pub to: ChannelId,
-    pub payload: Payload,
-}
-
-impl Message for PubMsg {
-    type Result = ();
-}
-
-#[derive(Debug)]
-pub struct UnsubMsg {
-    pub on: ChannelId,
-}
-
-impl Message for UnsubMsg {
-    type Result = ();
-}
-
-pub struct RouterTransmitter {
-    pub inner: Arc<RoutingTable>,
-    pub(crate) waiting: HashMap<ChannelId, Vec<PubMsg>>,
-}
-
-impl Actor for RouterTransmitter {
-    type Context = Context<Self>;
-}
-
-impl Handler<PubMsg> for RouterTransmitter {
-    type Result = ();
-
-    fn handle(&mut self, msg: PubMsg, _ctx: &mut Self::Context) -> Self::Result {
-        if let Some(t) = self.waiting.get_mut(&msg.to) {
-            debug!("Pushing to Publish to Queue {msg:?}");
-            t.push(msg);
-        } else if let Some(t) = self.inner.routes.get(&msg.to) {
-            debug!("Publishing {msg:?}");
-            for k in t.value() {
-                let s = self.inner.sinks.get(k.value()).unwrap();
-                let _ = s.value().try_handle(IncommingPacket {
-                    id: Uuid::new_v4(),
-                    wire: msg.to,
-                    from: self.inner.self_id,
-                    p_type: PacketType::Pub(msg.payload.msg.clone()),
-                });
+impl RouterTx {
+    pub async fn recv_messages(mut self) {
+        while let Some(t) = self.msg_stream.recv().await {
+            match t {
+                OutgoingMessage::Pub(f, t) => self.send_pub_msg(t, &f).await,
+                OutgoingMessage::Sub(t) => self.send_sub_msg(t),
+                OutgoingMessage::Unsub(t) => self.send_unsub_msg(t),
             }
         }
     }
-}
 
-impl Handler<UnsubMsg> for RouterTransmitter {
-    type Result = ();
+    fn packet(&self, to: ChannelId, msg_type: PacketType) -> Packet {
+        Packet {
+            id: ChannelId::get_random(),
+            wire: to,
+            from: self.inner.self_id,
+            p_type: msg_type,
+        }
+    }
 
-    fn handle(&mut self, msg: UnsubMsg, _ctx: &mut Self::Context) -> Self::Result {
+    pub async fn send_pub_msg(&self, to: ChannelId, payload: &str) {
+        if let Some(t) = self.inner.waiting.get(&to) {
+            debug!("Pushing to Publish to Queue to: {to} payload:{payload}");
+            let qu = t.value().read().await;
+            qu.push(payload.to_string());
+        } else if let Some(t) = self.inner.table.routes.get(&to) {
+            debug!("Publishing to: {to} payload:{payload}");
+            for k in t.value() {
+                let s = self.inner.sinks.get(k.value()).unwrap();
+                let _ = s
+                    .value()
+                    .send(self.packet(to, PacketType::Pub(payload.to_string())));
+            }
+        }
+    }
+
+    pub fn send_unsub_msg(&self, to: ChannelId) {
         //if we have 1 routing entry for that channel it means we are leaf.. that means we actually send unsub message
         //if we have more than one... it means we are not leaf... in that case just remove from channel and wait
-        debug!("Unsubbing from {}", msg.on);
-        self.inner.channels.remove(&msg.on);
+        debug!("Unsubbing from {}", to);
+        self.inner.table.channels.remove(&to);
 
-        if let Some(t) = self.inner.routes.get(&msg.on) {
+        if let Some(t) = self.inner.table.routes.get(&to) {
             if t.value().len() == 1 {
                 //propogate unsub and remove entry
                 // self.tx.send()
@@ -109,71 +65,33 @@ impl Handler<UnsubMsg> for RouterTransmitter {
                     .sinks
                     .get(t.value().front().unwrap().value())
                     .unwrap();
-                let p = IncommingPacket {
-                    from: self.inner.self_id.clone(),
-                    id: Uuid::new_v4(),
-                    p_type: PacketType::UnSub,
-                    wire: msg.on,
-                };
+                let p = self.packet(to, PacketType::UnSub);
+
                 debug!("Actually propogating unsub {p:?}");
-                let _ = val.value().try_handle(p);
+                let _ = val.value().send(p);
             }
         }
     }
-}
 
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct SubMsg {
-    pub on: ChannelId,
-}
+    pub fn send_sub_msg(&self, to: ChannelId) {
+        self.inner.table.channels.insert(to);
+        self.inner
+            .waiting
+            .insert(to, RwLock::new(SegQueue::default()));
 
-impl From<ChannelId> for SubMsg {
-    fn from(value: ChannelId) -> Self {
-        Self { on: value }
-    }
-}
-
-impl Handler<SubMsg> for RouterTransmitter {
-    type Result = ();
-
-    fn handle(&mut self, msg: SubMsg, _ctx: &mut Self::Context) -> Self::Result {
-        self.inner.channels.insert(msg.on);
-        self.waiting.insert(msg.on, Vec::new());
-
-        let sb = IncommingPacket {
-            from: self.inner.self_id,
-            id: Uuid::new_v4(),
-            p_type: PacketType::Sub(self.inner.self_id, msg.on),
-            wire: msg.on,
-        };
+        let sb = self.packet(to, PacketType::Sub(self.inner.self_id, to));
 
         //construct sub packet then propogate
         let mut act_sent = 0;
         for yt in self.inner.sinks.iter() {
-            let _ = yt.value().try_handle(sb.clone());
+            let _ = yt.value().send(sb.clone());
             act_sent += 1;
         }
 
-        self.inner.sub_table.insert(sb.id, self.inner.self_id);
+        self.inner.table.sub_table.insert(sb.id, self.inner.self_id);
         self.inner
+            .table
             .ack_table
             .insert(sb.id, AtomicUsize::new(act_sent));
-        //construct sub
-    }
-}
-
-impl Handler<SubAck> for RouterTransmitter {
-    type Result = ();
-
-    fn handle(&mut self, msg: SubAck, ctx: &mut Self::Context) -> Self::Result {
-        debug!("Propogating SubAck Upstream {msg:?}");
-        self.waiting
-            .remove(&msg.on)
-            .map_or(Vec::new(), |f| f)
-            .into_iter()
-            .for_each(|f| {
-                let _ = ctx.address().try_send(f);
-            });
     }
 }

@@ -1,14 +1,29 @@
-use std::sync::{atomic::AtomicUsize, Arc};
-
-use crate::handler::PacketHandler;
-
-use actix::Message;
+use crossbeam_queue::SegQueue;
+use std::sync::atomic::AtomicUsize;
+use tokio::sync::{mpsc, RwLock};
+// use crate::handler::PacketHandler;
 use crossbeam_skiplist::{SkipMap, SkipSet};
 use uuid::Uuid;
 
 pub type PacketId = Uuid;
 pub type ChannelId = Uuid;
 pub type ServiceId = Uuid;
+
+pub trait Randomable {
+    fn get_random() -> Self;
+}
+
+impl Randomable for Uuid {
+    fn get_random() -> Self {
+        Uuid::new_v4()
+    }
+}
+
+impl Randomable for u32 {
+    fn get_random() -> Self {
+        rand::random()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum PacketType {
@@ -19,7 +34,7 @@ pub enum PacketType {
 }
 
 #[derive(Debug, Clone)]
-pub struct IncommingPacket {
+pub struct Packet {
     pub id: PacketId,
     pub wire: ChannelId,
     //immediate sender
@@ -27,46 +42,44 @@ pub struct IncommingPacket {
     pub p_type: PacketType,
 }
 
-impl IncommingPacket {
-    pub fn copy(&self, sen: ServiceId) -> IncommingPacket {
+impl Packet {
+    pub fn copy(&self, sen: ServiceId) -> Packet {
         let mut p = self.clone();
         p.id = self.id;
         p.from = sen;
         p
     }
 
-    pub fn repeat(&self, sen: ServiceId) -> IncommingPacket {
+    pub fn repeat(&self, sen: ServiceId) -> Packet {
         let mut p = self.clone();
-        p.id = Uuid::new_v4();
+        p.id = ChannelId::get_random();
         p.from = sen;
         p
     }
 }
 
-impl Message for IncommingPacket {
-    type Result = ();
+pub struct RouterInner {
+    pub(crate) self_id: ServiceId,
+    pub(crate) table: RoutingTable,
+    pub(crate) sinks: SkipMap<ServiceId, mpsc::UnboundedSender<Packet>>,
+    pub(crate) waiting: SkipMap<ChannelId, RwLock<SegQueue<String>>>,
+}
+
+impl RouterInner {
+    pub(crate) fn packet(&self, to: ChannelId, msg_type: PacketType) -> Packet {
+        Packet {
+            id: Randomable::get_random(),
+            wire: to,
+            from: self.self_id,
+            p_type: msg_type,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct RoutingTable {
-    pub self_id: ServiceId,
-    pub sinks: SkipMap<ServiceId, Arc<PacketHandler>>,
     pub channels: SkipSet<ChannelId>,
     pub sub_table: SkipMap<PacketId, ServiceId>,
     pub ack_table: SkipMap<PacketId, AtomicUsize>,
     pub routes: SkipMap<ChannelId, SkipSet<ServiceId>>,
-}
-
-impl RoutingTable {
-    pub fn new() -> RoutingTable {
-        Self::with_id(Uuid::new_v4())
-        // Self::with_id(rand::random())
-    }
-
-    pub fn with_id(self_id: ServiceId) -> RoutingTable {
-        Self {
-            self_id,
-            ..Default::default()
-        }
-    }
 }

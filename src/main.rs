@@ -1,69 +1,89 @@
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::router::Router;
+use crate::{r_table::{RoutingTable, ChannelId, Randomable}, reciever::RouterRx};
 
-pub mod handler;
 pub mod r_table;
 pub mod reciever;
 pub mod router;
 pub mod transmitter;
 
-#[actix_rt::main]
-async fn main() {
+// #[actix_rt::main]
+fn main() {
     pretty_env_logger::init();
 
     println!("Hello World");
 
-    let r1 = Router::new_test(1);
+    let rt = RoutingTable::default();
 
-    let r2 = Router::new_test(2);
+    let (tx, rx) = mpsc::unbounded_channel();
 
-    let r3 = Router::new_test(3);
+    let (mut rr, ptx) = RouterRx::new(ChannelId::get_random(), rt, tx);
 
-    let r4 = Router::new_test(4);
+    let (ro, rtx) = rr.create_tx();
 
-    let r5 = Router::new_test(5);
+    tokio::spawn(async move {
+        rr.recv_packets().await;
+    });
 
-    let r6 = Router::new_test(6);
+    // tokio::spawn(async {
+    //     ro.send_pub_msg(Uuid::new_v4(), "Hello world");
+    // });
 
-    r1.add_entry(r2.id(), r2.create_handler());
-    r2.add_entry(r1.id(), r1.create_handler());
+    // tokio::spawn(async {
+    //     ro.send_pub_msg(Uuid::new_v4(), "Hello world");
+    // });
 
-    r5.add_entry(r2.id(), r2.create_handler());
-    r2.add_entry(r5.id(), r5.create_handler());
+    // let r1 = Router::new_test(1);
 
-    r2.add_entry(r3.id(), r3.create_handler());
-    r3.add_entry(r2.id(), r2.create_handler());
+    // let r2 = Router::new_test(2);
 
-    r6.add_entry(r3.id(), r3.create_handler());
-    r3.add_entry(r6.id(), r6.create_handler());
+    // let r3 = Router::new_test(3);
 
-    r3.add_entry(r4.id(), r4.create_handler());
-    r4.add_entry(r3.id(), r3.create_handler());
+    // let r4 = Router::new_test(4);
 
-    let wi = Uuid::new_v4();
+    // let r5 = Router::new_test(5);
 
-    r1.sub(wi).await.unwrap();
+    // let r6 = Router::new_test(6);
 
-    r3.sub(wi).await.unwrap();
+    // r1.add_entry(r2.id(), r2.create_handler());
+    // r2.add_entry(r1.id(), r1.create_handler());
 
-    r1.publish("Hello World", wi).await.unwrap();
+    // r5.add_entry(r2.id(), r2.create_handler());
+    // r2.add_entry(r5.id(), r5.create_handler());
 
-    r5.sub(wi).await.unwrap();
+    // r2.add_entry(r3.id(), r3.create_handler());
+    // r3.add_entry(r2.id(), r2.create_handler());
 
-    r3.publish("Hello to you too good sir", wi).await.unwrap();
+    // r6.add_entry(r3.id(), r3.create_handler());
+    // r3.add_entry(r6.id(), r6.create_handler());
 
-    r5.publish("Yolo", wi).await.unwrap();
+    // r3.add_entry(r4.id(), r4.create_handler());
+    // r4.add_entry(r3.id(), r3.create_handler());
 
-    r3.unsub(wi).await.unwrap();
+    // let wi = Uuid::new_v4();
 
-    r5.publish("Yolo2", wi).await.unwrap();
+    // r1.sub(wi).await.unwrap();
 
-    r3.sub(wi).await.unwrap();
+    // r3.sub(wi).await.unwrap();
 
-    r5.unsub(wi).await.unwrap();
+    // r1.publish("Hello World", wi).await.unwrap();
 
-    r1.publish("Hehe", wi).await.unwrap();
+    // r5.sub(wi).await.unwrap();
+
+    // r3.publish("Hello to you too good sir", wi).await.unwrap();
+
+    // r5.publish("Yolo", wi).await.unwrap();
+
+    // r3.unsub(wi).await.unwrap();
+
+    // r5.publish("Yolo2", wi).await.unwrap();
+
+    // r3.sub(wi).await.unwrap();
+
+    // r5.unsub(wi).await.unwrap();
+
+    // r1.publish("Hehe", wi).await.unwrap();
 
     // rou2.send();
 
