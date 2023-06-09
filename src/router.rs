@@ -1,7 +1,5 @@
 use std::{collections::HashMap, error::Error, sync::Arc};
 
-use uuid::Uuid;
-
 // use crate::{
 //     handler::{ActixPacketRecipient, ActixRecipient, PacketHandler},
 //     r_table::{ChannelId, RoutingTable, ServiceId},

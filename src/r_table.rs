@@ -25,6 +25,18 @@ impl Randomable for u32 {
     }
 }
 
+impl Randomable for u8 {
+    fn get_random() -> Self {
+        rand::random()
+    }
+}
+
+impl Randomable for i64 {
+    fn get_random() -> Self {
+        rand::random()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum PacketType {
     Pub(String),
@@ -52,7 +64,7 @@ impl Packet {
 
     pub fn repeat(&self, sen: ServiceId) -> Packet {
         let mut p = self.clone();
-        p.id = ChannelId::get_random();
+        p.id = PacketId::get_random();
         p.from = sen;
         p
     }

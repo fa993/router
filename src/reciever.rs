@@ -4,9 +4,8 @@ use tokio::sync::mpsc;
 use crossbeam_skiplist::{SkipMap, SkipSet};
 use log::debug;
 use tokio::sync::mpsc::UnboundedReceiver;
-use uuid::Uuid;
 
-use crate::r_table::{ChannelId, Packet, PacketType, RoutingTable};
+use crate::r_table::{ChannelId, Packet, PacketId, PacketType, RoutingTable};
 use crate::r_table::{RouterInner, ServiceId};
 use crate::transmitter::RouterTx;
 
@@ -70,15 +69,10 @@ impl RouterRx {
         }
     }
 
-    pub fn create_tx(&self) -> (RouterTx, mpsc::UnboundedSender<OutgoingMessage>) {
-        let (tx, rx) = mpsc::unbounded_channel();
-        (
-            RouterTx {
-                inner: self.inner.clone(),
-                msg_stream: rx,
-            },
-            tx,
-        )
+    pub fn create_tx(&self) -> RouterTx {
+        RouterTx {
+            inner: self.inner.clone(),
+        }
     }
 }
 
@@ -101,7 +95,7 @@ impl RouterRx {
         }
     }
 
-    fn handle_sub_packet(&self, msg: &Packet, ch: &Uuid, se: &Uuid) {
+    fn handle_sub_packet(&self, msg: &Packet, ch: &ChannelId, se: &ServiceId) {
         //sub is always passed along
         if self.inner.sinks.len() == 1 {
             if self.inner.table.channels.contains(ch) {
@@ -139,7 +133,13 @@ impl RouterRx {
         }
     }
 
-    async fn handle_sub_ack_packet(&self, msg: &Packet, id: &Uuid, se: &Uuid, yesno: bool) {
+    async fn handle_sub_ack_packet(
+        &self,
+        msg: &Packet,
+        id: &PacketId,
+        se: &ServiceId,
+        yesno: bool,
+    ) {
         if *se == self.inner.self_id {
             if yesno {
                 let val = self
@@ -246,15 +246,27 @@ impl RouterRx {
     }
 
     async fn send_sub_ack_msg(&self, to: ChannelId) {
-        debug!("Releasing leftover sub packets to:{to}");
+        debug!("Releasing leftover pub packets to:{to}");
         let en = self.inner.waiting.remove(&to);
-        if let Some(s) = self.inner.sinks.get(&to) {
-            if let Some(t) = en {
-                let r = t.value().write().await;
-                while let Some(f) = r.pop() {
-                    debug!("Publishing to: {to} payload:{f}");
-                    let _ = s.value().send(self.inner.packet(to, PacketType::Pub(f)));
-                    // self.send_pub_msg(to, &f);
+        let mut msgs = Vec::new();
+        if let Some(t) = en {
+            let r = t.value().write().await;
+            while let Some(f) = r.pop() {
+                debug!("Extracting All accumulated payloads to buffer payload: {f} to: {to}");
+                msgs.push(f);
+            }
+        }
+
+        let rous = self.inner.table.routes.get(&to);
+        if let Some(ro) = rous {
+            debug!("Publishing All accumulated to: {to}");
+            for i in ro.value() {
+                if let Some(s) = self.inner.sinks.get(i.value()) {
+                    msgs.iter().for_each(|f| {
+                        let _ = s
+                            .value()
+                            .send(self.inner.packet(to, PacketType::Pub(f.clone())));
+                    });
                 }
             }
         }

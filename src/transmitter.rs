@@ -2,32 +2,30 @@ use std::sync::{atomic::AtomicUsize, Arc};
 
 use crossbeam_queue::SegQueue;
 use log::debug;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 
 use crate::{
-    r_table::{ChannelId, Packet, PacketType, Randomable, RouterInner},
+    r_table::{ChannelId, Packet, PacketId, PacketType, Randomable, RouterInner},
     reciever::OutgoingMessage,
 };
 
+#[derive(Clone)]
 pub struct RouterTx {
     pub(crate) inner: Arc<RouterInner>,
-    pub(crate) msg_stream: mpsc::UnboundedReceiver<OutgoingMessage>,
 }
 
 impl RouterTx {
-    pub async fn recv_messages(mut self) {
-        while let Some(t) = self.msg_stream.recv().await {
-            match t {
-                OutgoingMessage::Pub(f, t) => self.send_pub_msg(t, &f).await,
-                OutgoingMessage::Sub(t) => self.send_sub_msg(t),
-                OutgoingMessage::Unsub(t) => self.send_unsub_msg(t),
-            }
+    pub async fn handle_msg(&self, t: OutgoingMessage) {
+        match t {
+            OutgoingMessage::Pub(f, t) => self.send_pub_msg(t, &f).await,
+            OutgoingMessage::Sub(t) => self.send_sub_msg(t),
+            OutgoingMessage::Unsub(t) => self.send_unsub_msg(t),
         }
     }
 
     fn packet(&self, to: ChannelId, msg_type: PacketType) -> Packet {
         Packet {
-            id: ChannelId::get_random(),
+            id: PacketId::get_random(),
             wire: to,
             from: self.inner.self_id,
             p_type: msg_type,
@@ -36,7 +34,7 @@ impl RouterTx {
 
     pub async fn send_pub_msg(&self, to: ChannelId, payload: &str) {
         if let Some(t) = self.inner.waiting.get(&to) {
-            debug!("Pushing to Publish to Queue to: {to} payload:{payload}");
+            debug!("Pushing to Publish Queue to: {to} payload:{payload}");
             let qu = t.value().read().await;
             qu.push(payload.to_string());
         } else if let Some(t) = self.inner.table.routes.get(&to) {

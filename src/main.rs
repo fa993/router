@@ -1,7 +1,9 @@
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
-use crate::{r_table::{RoutingTable, ChannelId, Randomable}, reciever::RouterRx};
+use crate::{
+    r_table::{ChannelId, Randomable, RoutingTable, ServiceId},
+    reciever::RouterRx,
+};
 
 pub mod r_table;
 pub mod reciever;
@@ -18,12 +20,28 @@ fn main() {
 
     let (tx, rx) = mpsc::unbounded_channel();
 
-    let (mut rr, ptx) = RouterRx::new(ChannelId::get_random(), rt, tx);
+    let (mut rr, ptx) = RouterRx::new(ServiceId::get_random(), rt, tx);
 
-    let (ro, rtx) = rr.create_tx();
-
+    let ro = rr.create_tx();
+    let r1 = ro.clone();
     tokio::spawn(async move {
         rr.recv_packets().await;
+    });
+
+    tokio::spawn(async move {
+        r1.handle_msg(reciever::OutgoingMessage::Pub(
+            "Hello World".to_string(),
+            ChannelId::get_random(),
+        ))
+        .await;
+    });
+
+    tokio::spawn(async move {
+        ro.handle_msg(reciever::OutgoingMessage::Pub(
+            "Hello World".to_string(),
+            ChannelId::get_random(),
+        ))
+        .await;
     });
 
     // tokio::spawn(async {
