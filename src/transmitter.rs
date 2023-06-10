@@ -9,9 +9,16 @@ use crate::{
     reciever::OutgoingMessage,
 };
 
-#[derive(Clone)]
 pub struct RouterTx {
     pub(crate) inner: Arc<RouterInner>,
+}
+
+impl Clone for RouterTx {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl RouterTx {

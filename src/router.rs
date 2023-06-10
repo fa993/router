@@ -1,7 +1,10 @@
-use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::sync::{
+    mpsc::{self, UnboundedSender},
+    oneshot,
+};
 
 use crate::{
-    r_table::{Packet, RoutingTable},
+    r_table::{ChannelId, Packet, RoutingTable},
     reciever::RouterRx,
     transmitter::RouterTx,
 };
@@ -18,11 +21,7 @@ impl Router {
 
     pub fn new_test(c: u32) -> Router {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        tokio::spawn(async move {
-            while let Some(t) = rx.recv().await {
-                println!("{c} got payload {t}");
-            }
-        });
+
         let (mut rr, ptx) = RouterRx::new(c, RoutingTable::default(), tx);
         let rtx = rr.create_tx();
 
@@ -30,7 +29,43 @@ impl Router {
             rr.recv_packets().await;
         });
 
+        tokio::spawn(async move {
+            while let Some(t) = rx.recv().await {
+                println!("{c} got payload {t}");
+            }
+        });
+
         Self { ptx, sender: rtx }
+    }
+
+    pub fn new_ping_pong_test(c: u32, wi: ChannelId, lim: u32) -> (Router, oneshot::Receiver<()>) {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (donetx, donerx) = oneshot::channel();
+        let (mut rr, ptx) = RouterRx::new(c, RoutingTable::default(), tx);
+        let rtx = rr.create_tx();
+        let localrtx = rtx.clone();
+
+        tokio::spawn(async move {
+            rr.recv_packets().await;
+        });
+
+        tokio::spawn(async move {
+            let mut i = 0;
+            while let Some(t) = rx.recv().await {
+                if t == "ping" {
+                    localrtx.send_pub_msg(wi, "pong").await;
+                } else if t == "pong" {
+                    localrtx.send_pub_msg(wi, "ping").await;
+                }
+                if i == lim {
+                    let _ = donetx.send(());
+                    break;
+                }
+                i += 1;
+            }
+        });
+
+        (Self { ptx, sender: rtx }, donerx)
     }
 
     //this is both ways

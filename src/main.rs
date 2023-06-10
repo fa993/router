@@ -1,6 +1,11 @@
-use std::time::Duration;
+use std::{thread::JoinHandle, time::Instant};
 
-use tokio::time::interval;
+use r_table::RoutingTable;
+use reciever::RouterRx;
+use tokio::{
+    runtime,
+    sync::{mpsc, oneshot},
+};
 
 use crate::{
     r_table::{ChannelId, Randomable},
@@ -18,124 +23,206 @@ async fn main() {
 
     println!("Hello World");
 
-    // let rt = RoutingTable::default();
-
-    // let (tx, rx) = mpsc::unbounded_channel();
-
-    // let (mut rr, ptx) = RouterRx::new(ServiceId::get_random(), rt, tx);
-
-    // let ro = rr.create_tx();
-    // let r1 = ro.clone();
-    // tokio::spawn(async move {
-    //     rr.recv_packets().await;
-    // });
-
-    // tokio::spawn(async move {
-    //     r1.handle_msg(reciever::OutgoingMessage::Pub(
-    //         "Hello World".to_string(),
-    //         ChannelId::get_random(),
-    //     ))
-    //     .await;
-    // });
-
-    // tokio::spawn(async move {
-    //     ro.handle_msg(reciever::OutgoingMessage::Pub(
-    //         "Hello World".to_string(),
-    //         ChannelId::get_random(),
-    //     ))
-    //     .await;
-    // });
-
-    let r1 = Router::new_test(1);
-
-    let r2 = Router::new_test(2);
-
-    r1.connect_to(&r2);
+    let count = 10_000;
 
     let wi = ChannelId::get_random();
 
-    r1.sender.send_sub_msg(wi);
+    let (r1, _) = Router::new_ping_pong_test(1, wi, count - 1);
 
-    r2.sender.send_sub_msg(wi);
+    let r2 = Router::new_test(2);
 
-    let handle = tokio::spawn(async move {
-        r1.sender.send_pub_msg(wi, "Hello World").await;
-    });
-
-    let _ = handle.await;
-
-    let mut inter = interval(Duration::from_secs(2));
-
-    inter.tick().await;
-
-    r2.sender.send_pub_msg(wi, "Hello world").await;
-
-    let mut inter = interval(Duration::from_secs(2));
-
-    inter.tick().await;
-
-    // r1.sender.send_pub_msg(wi, "Hello World").await;
-
-    // tokio::spawn(async {
-    //     ro.send_pub_msg(Uuid::new_v4(), "Hello world");
-    // });
-
-    // tokio::spawn(async {
-    //     ro.send_pub_msg(Uuid::new_v4(), "Hello world");
-    // });
-
-    // let r1 = Router::new_test(1);
-
-    // let r2 = Router::new_test(2);
-
-    // let r3 = Router::new_test(3);
+    let r3 = Router::new_test(3);
 
     // let r4 = Router::new_test(4);
 
-    // let r5 = Router::new_test(5);
+    let r5 = Router::new_test(5);
 
-    // let r6 = Router::new_test(6);
+    let (r6, rec) = Router::new_ping_pong_test(6, wi, count);
 
-    // r1.add_entry(r2.id(), r2.create_handler());
-    // r2.add_entry(r1.id(), r1.create_handler());
+    //2
+    // r1.connect_to(&r6);
 
-    // r5.add_entry(r2.id(), r2.create_handler());
-    // r2.add_entry(r5.id(), r5.create_handler());
+    //3
+    // r1.connect_to(&r3);
+    // r3.connect_to(&r6);
 
-    // r2.add_entry(r3.id(), r3.create_handler());
-    // r3.add_entry(r2.id(), r2.create_handler());
+    //4
+    // r1.connect_to(&r2);
+    // r2.connect_to(&r3);
+    // r3.connect_to(&r6);
 
-    // r6.add_entry(r3.id(), r3.create_handler());
-    // r3.add_entry(r6.id(), r6.create_handler());
+    //5
+    r1.connect_to(&r2);
+    r2.connect_to(&r3);
+    r3.connect_to(&r5);
+    r5.connect_to(&r6);
 
-    // r3.add_entry(r4.id(), r4.create_handler());
-    // r4.add_entry(r3.id(), r3.create_handler());
+    //6
+    // r1.connect_to(&r2);
+    // r2.connect_to(&r3);
+    // r3.connect_to(&r4);
+    // r4.connect_to(&r5);
+    // r5.connect_to(&r6);
 
-    // let wi = Uuid::new_v4();
+    // r1.connect_to(&r2);
 
-    // r1.sub(wi).await.unwrap();
+    // r2.connect_to(&r3);
 
-    // r3.sub(wi).await.unwrap();
+    // r3.connect_to(&r4);
 
-    // r1.publish("Hello World", wi).await.unwrap();
+    // r2.connect_to(&r5);
 
-    // r5.sub(wi).await.unwrap();
+    // r3.connect_to(&r6);
 
-    // r3.publish("Hello to you too good sir", wi).await.unwrap();
+    r1.sender.send_sub_msg(wi);
 
-    // r5.publish("Yolo", wi).await.unwrap();
+    r6.sender.send_sub_msg(wi);
 
-    // r3.unsub(wi).await.unwrap();
+    let ins = Instant::now();
 
-    // r5.publish("Yolo2", wi).await.unwrap();
+    r1.sender.send_pub_msg(wi, "ping").await;
 
-    // r3.sub(wi).await.unwrap();
+    let _ = rec.await;
 
-    // r5.unsub(wi).await.unwrap();
+    println!("{:?}", Instant::now() - ins)
 
-    // r1.publish("Hehe", wi).await.unwrap();
+    //now we wait for channel to complete
+
+    //setup ping pong test
 
     // rou2.send();
 
     //test with 2 router instances and see if messages message or not
 }
+
+// fn test_main_multi() {
+//     pretty_env_logger::init();
+
+//     println!("Hello World");
+
+//     let count = 1000_000;
+
+//     let wi = ChannelId::get_random();
+
+//     let (r1, rec1, h1) = setup_router_sng_thread(1, Some(wi), count - 1);
+
+//     let (r2, _, h2) = setup_router_sng_thread(2, None, 0);
+
+//     let (r3, _, h3) = setup_router_sng_thread(3, None, 0);
+
+//     let (r4, _, h4) = setup_router_sng_thread(4, None, 0);
+
+//     let (r5, _, h5) = setup_router_sng_thread(5, None, 0);
+
+//     let (r6, rec, h6) = setup_router_sng_thread(6, Some(wi), count);
+
+//     //2
+//     // r1.connect_to(&r6);
+
+//     //3
+//     // r1.connect_to(&r3);
+//     // r3.connect_to(&r6);
+
+//     //4
+//     // r1.connect_to(&r2);
+//     // r2.connect_to(&r3);
+//     // r3.connect_to(&r6);
+
+//     //6
+//     r1.connect_to(&r2);
+//     r2.connect_to(&r3);
+//     r3.connect_to(&r4);
+//     r4.connect_to(&r5);
+//     r5.connect_to(&r6);
+
+//     // r1.connect_to(&r2);
+
+//     // r2.connect_to(&r3);
+
+//     // r3.connect_to(&r4);
+
+//     // r2.connect_to(&r5);
+
+//     // r3.connect_to(&r6);
+
+//     r1.sender.send_sub_msg(wi);
+
+//     r6.sender.send_sub_msg(wi);
+
+//     let _ = h1.join().unwrap();
+//     let _ = h2.join().unwrap();
+//     let _ = h3.join().unwrap();
+//     let _ = h4.join().unwrap();
+//     let _ = h5.join().unwrap();
+
+//     let ins = Instant::now();
+
+//     let runtime = runtime::Builder::new_multi_thread()
+//             .worker_threads(8)
+//             .enable_all()
+//             .build()
+//             .unwrap();
+
+//     runtime.block_on(async {
+//         r1.sender.send_pub_msg(wi, "ping").await;
+
+//         let c2 = rec1.await.unwrap();
+//         let c = rec.await.unwrap();
+
+//         println!("{:?} {c2} {c}", Instant::now() - ins)
+//     });
+
+//     //now we wait for channel to complete
+
+//     //setup ping pong test
+
+//     // rou2.send();
+
+//     //test with 2 router instances and see if messages message or not
+// }
+
+// fn setup_router_sng_thread(
+//     c: u32,
+//     wi: Option<ChannelId>,
+//     lim: u32,
+// ) -> (Router, oneshot::Receiver<u32>, JoinHandle<()>) {
+//     let (tx, mut rx) = mpsc::unbounded_channel();
+//     let (donetx, donerx) = oneshot::channel();
+//     let (mut rr, ptx) = RouterRx::new(c, RoutingTable::default(), tx);
+//     let rtx = rr.create_tx();
+//     let localrtx = rtx.clone();
+
+//     let handle = std::thread::spawn(move || {
+//         let runtime = runtime::Builder::new_multi_thread()
+//             .worker_threads(8)
+//             .enable_all()
+//             .build()
+//             .unwrap();
+
+//         runtime.block_on(async {
+//             tokio::spawn(async move {
+//                 rr.recv_packets().await;
+//             });
+
+//             if let Some(wi) = wi {
+//                 tokio::spawn(async move {
+//                     let mut i = 0;
+//                     while let Some(t) = rx.recv().await {
+//                         if t == "ping" {
+//                             localrtx.send_pub_msg(wi, "pong").await;
+//                         } else if t == "pong" {
+//                             localrtx.send_pub_msg(wi, "ping").await;
+//                         }
+//                         if i == lim {
+//                             let _ = donetx.send(i);
+//                             break;
+//                         }
+//                         i += 1;
+//                     }
+//                 });
+//             }
+//         });
+//     });
+
+//     (Router { ptx, sender: rtx }, donerx, handle)
+// }
