@@ -1,5 +1,6 @@
 use crossbeam_queue::SegQueue;
 use crossbeam_skiplist::{SkipMap, SkipSet};
+use serde::{Serialize, Deserialize};
 use std::sync::atomic::AtomicUsize;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
@@ -36,7 +37,7 @@ impl Randomable for i64 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PacketType {
     Pub(String),
     Sub(ServiceId, ChannelId),
@@ -44,7 +45,7 @@ pub enum PacketType {
     UnSub,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Packet {
     pub id: PacketId,
     pub wire: ChannelId,

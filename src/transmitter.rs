@@ -2,10 +2,10 @@ use std::sync::{atomic::AtomicUsize, Arc};
 
 use crossbeam_queue::SegQueue;
 use log::debug;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, mpsc};
 
 use crate::{
-    r_table::{ChannelId, Packet, PacketId, PacketType, Randomable, RouterInner},
+    r_table::{ChannelId, Packet, PacketId, PacketType, Randomable, RouterInner, ServiceId},
     reciever::OutgoingMessage,
 };
 
@@ -29,6 +29,10 @@ impl RouterTx {
             from: self.inner.self_id,
             p_type: msg_type,
         }
+    }
+
+    pub fn add_entry(&self, for_service: ServiceId, handler: mpsc::UnboundedSender<Packet>) {
+        self.inner.sinks.insert(for_service, handler);
     }
 
     pub fn inner(&self) -> Arc<RouterInner> {
