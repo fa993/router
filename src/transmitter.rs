@@ -41,7 +41,7 @@ impl RouterTx {
 
     pub async fn handle_msg(&self, t: OutgoingMessage) {
         match t {
-            OutgoingMessage::Pub(f, t) => self.send_pub_msg(t, &f).await,
+            OutgoingMessage::Pub(p) => self.send_pub_msg(p.dest, &p.contents).await,
             OutgoingMessage::Sub(t) => self.send_sub_msg(t),
             OutgoingMessage::Unsub(t) => self.send_unsub_msg(t),
         }

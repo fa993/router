@@ -52,9 +52,9 @@ impl Router {
         tokio::spawn(async move {
             let mut i = 0;
             while let Some(t) = rx.recv().await {
-                if t == "ping" {
+                if t.contents == "ping" {
                     localrtx.send_pub_msg(wi, "pong").await;
-                } else if t == "pong" {
+                } else if t.contents == "pong" {
                     localrtx.send_pub_msg(wi, "ping").await;
                 }
                 if i == lim {

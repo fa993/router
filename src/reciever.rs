@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::{atomic::AtomicUsize, Arc};
 use tokio::sync::mpsc;
 
@@ -9,15 +10,33 @@ use crate::r_table::{ChannelId, Packet, PacketId, PacketType, RoutingTable};
 use crate::r_table::{RouterInner, ServiceId};
 use crate::transmitter::RouterTx;
 
+#[derive(Debug, PartialEq, PartialOrd)]
+pub struct Payload {
+    pub dest: ChannelId,
+    pub contents: String
+}
+
+impl Payload {
+    pub fn new(to: ChannelId, body: String) -> Payload {
+        Self { dest: to, contents: body }
+    }
+}
+
+impl Display for Payload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}):{}", self.dest, self.contents)
+    }
+}
+
 pub enum OutgoingMessage {
-    Pub(String, ChannelId),
+    Pub(Payload),
     Sub(ChannelId),
     Unsub(ChannelId),
 }
 
 pub struct RouterRx {
     inner: Arc<RouterInner>,
-    self_rec: mpsc::UnboundedSender<String>,
+    self_rec: mpsc::UnboundedSender<Payload>,
     pck_stream: mpsc::UnboundedReceiver<Packet>,
 }
 
@@ -25,7 +44,7 @@ impl RouterRx {
     pub fn new(
         self_id: ServiceId,
         inn: RoutingTable,
-        se_re: mpsc::UnboundedSender<String>,
+        se_re: mpsc::UnboundedSender<Payload>,
     ) -> (Self, mpsc::UnboundedSender<Packet>) {
         let (ptx, prx) = mpsc::unbounded_channel();
         (
@@ -45,7 +64,7 @@ impl RouterRx {
 
     pub fn with_inner(
         inn: Arc<RouterInner>,
-        se_re: mpsc::UnboundedSender<String>,
+        se_re: mpsc::UnboundedSender<Payload>,
         prx: UnboundedReceiver<Packet>,
     ) -> Self {
         Self {
@@ -91,7 +110,7 @@ impl RouterRx {
         }
         if self.inner.table.channels.contains(&msg.wire) {
             //TODO
-            let _ = self.self_rec.send(payload.into());
+            let _ = self.self_rec.send(Payload { dest: msg.wire, contents: payload.into() });
         }
     }
 
