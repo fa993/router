@@ -35,6 +35,11 @@ impl RouterTx {
         self.inner.sinks.insert(for_service, handler);
     }
 
+    pub fn remove_entry(&self, for_service: ServiceId) {
+        self.inner.sinks.remove(&for_service);
+        //TODO resolve conflicts
+    }
+
     pub fn inner(&self) -> Arc<RouterInner> {
         self.inner.clone()
     }
