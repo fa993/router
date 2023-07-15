@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::sync::{atomic::AtomicUsize, Arc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crossbeam_skiplist::{SkipMap, SkipSet};
@@ -11,7 +11,7 @@ use crate::r_table::{ChannelId, Packet, PacketId, PacketType, RoutingTable};
 use crate::r_table::{RouterInner, ServiceId};
 use crate::transmitter::RouterTx;
 
-#[derive(Debug, PartialEq, PartialOrd, Deserialize)]
+#[derive(Debug, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct Payload {
     pub dest: ChannelId,
     pub contents: String
