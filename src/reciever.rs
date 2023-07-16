@@ -11,7 +11,7 @@ use crate::r_table::{ChannelId, Packet, PacketId, PacketType, RoutingTable};
 use crate::r_table::{RouterInner, ServiceId};
 use crate::transmitter::RouterTx;
 
-#[derive(Debug, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct Payload {
     pub dest: ChannelId,
     pub contents: String,
