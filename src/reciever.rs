@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crossbeam_skiplist::{SkipMap, SkipSet};
@@ -14,12 +14,15 @@ use crate::transmitter::RouterTx;
 #[derive(Debug, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct Payload {
     pub dest: ChannelId,
-    pub contents: String
+    pub contents: String,
 }
 
 impl Payload {
     pub fn new(to: ChannelId, body: String) -> Payload {
-        Self { dest: to, contents: body }
+        Self {
+            dest: to,
+            contents: body,
+        }
     }
 }
 
@@ -111,7 +114,10 @@ impl RouterRx {
         }
         if self.inner.table.channels.contains(&msg.wire) {
             //TODO
-            let _ = self.self_rec.send(Payload { dest: msg.wire, contents: payload.into() });
+            let _ = self.self_rec.send(Payload {
+                dest: msg.wire,
+                contents: payload.into(),
+            });
         }
     }
 
@@ -147,10 +153,7 @@ impl RouterRx {
                 let _ = en.value().send(msg.copy(self.inner.self_id));
                 act_sent.insert(*en.key());
             }
-            self.inner
-                .table
-                .ack_table
-                .insert(msg.id, act_sent);
+            self.inner.table.ack_table.insert(msg.id, act_sent);
         }
     }
 
@@ -211,8 +214,7 @@ impl RouterRx {
                 //     .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
             }
         } else if let Some(ent) = self.inner.table.ack_table.get(id) {
-            ent.value()
-                .remove(&msg.from);
+            ent.value().remove(&msg.from);
             if ent.value().is_empty() {
                 ent.remove();
                 let backroute = self.inner.table.sub_table.remove(id).unwrap();

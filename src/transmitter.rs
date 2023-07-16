@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crossbeam_queue::SegQueue;
 use crossbeam_skiplist::SkipSet;
 use log::debug;
-use tokio::sync::{RwLock, mpsc};
+use tokio::sync::{mpsc, RwLock};
 
 use crate::{
     r_table::{ChannelId, Packet, PacketId, PacketType, Randomable, RouterInner, ServiceId},
@@ -113,9 +113,6 @@ impl RouterTx {
         }
 
         self.inner.table.sub_table.insert(sb.id, self.inner.self_id);
-        self.inner
-            .table
-            .ack_table
-            .insert(sb.id, act_sent);
+        self.inner.table.ack_table.insert(sb.id, act_sent);
     }
 }

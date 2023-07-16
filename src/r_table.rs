@@ -1,6 +1,6 @@
 use crossbeam_queue::SegQueue;
 use crossbeam_skiplist::{SkipMap, SkipSet};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
