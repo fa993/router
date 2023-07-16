@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::sync::{atomic::AtomicUsize, Arc};
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
@@ -138,19 +138,19 @@ impl RouterRx {
                 ));
         } else {
             self.inner.table.sub_table.insert(msg.id, msg.from);
-            let mut act_sent = 0;
+            let act_sent = SkipSet::new();
             for en in self.inner.sinks.iter() {
                 if en.key() == &msg.from {
                     continue;
                 }
 
                 let _ = en.value().send(msg.copy(self.inner.self_id));
-                act_sent += 1;
+                act_sent.insert(*en.key());
             }
             self.inner
                 .table
                 .ack_table
-                .insert(msg.id, AtomicUsize::new(act_sent));
+                .insert(msg.id, act_sent);
         }
     }
 
@@ -172,8 +172,8 @@ impl RouterRx {
                 debug!("Creating Route to {:?}", val.value().get(&msg.from));
             }
             let yt = self.inner.table.ack_table.get(id).unwrap();
-            yt.value().fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-            if yt.value().load(std::sync::atomic::Ordering::SeqCst) == 0 {
+            yt.value().remove(&msg.from);
+            if yt.value().is_empty() {
                 self.inner.table.sub_table.remove(id);
                 //send subrelease message
                 self.send_sub_ack_msg(msg.wire).await;
@@ -190,7 +190,7 @@ impl RouterRx {
             }
 
             //send earliest sub response that is true
-            if let Some(ent) = self.inner.table.ack_table.remove(id) {
+            if self.inner.table.ack_table.remove(id).is_some() {
                 let backroute = self.inner.table.sub_table.remove(id).unwrap();
 
                 vs.value().insert(*backroute.value());
@@ -206,13 +206,14 @@ impl RouterRx {
                             .packet(msg.wire, PacketType::SubAck(*id, *se, true)),
                     );
 
-                ent.value()
-                    .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                //no use for this statement this has been removed
+                // ent.value()
+                //     .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
             }
         } else if let Some(ent) = self.inner.table.ack_table.get(id) {
             ent.value()
-                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-            if ent.value().load(std::sync::atomic::Ordering::SeqCst) == 0 {
+                .remove(&msg.from);
+            if ent.value().is_empty() {
                 ent.remove();
                 let backroute = self.inner.table.sub_table.remove(id).unwrap();
                 let _ = self

@@ -1,6 +1,7 @@
-use std::sync::{atomic::AtomicUsize, Arc};
+use std::sync::Arc;
 
 use crossbeam_queue::SegQueue;
+use crossbeam_skiplist::SkipSet;
 use log::debug;
 use tokio::sync::{RwLock, mpsc};
 
@@ -93,6 +94,11 @@ impl RouterTx {
 
     pub fn send_sub_msg(&self, to: ChannelId) {
         self.inner.table.channels.insert(to);
+        if self.inner.sinks.is_empty() {
+            //operating in single mode no need to send sub packets
+            return;
+        }
+
         self.inner
             .waiting
             .insert(to, RwLock::new(SegQueue::default()));
@@ -100,16 +106,16 @@ impl RouterTx {
         let sb = self.packet(to, PacketType::Sub(self.inner.self_id, to));
 
         //construct sub packet then propogate
-        let mut act_sent = 0;
+        let act_sent = SkipSet::new();
         for yt in self.inner.sinks.iter() {
             let _ = yt.value().send(sb.clone());
-            act_sent += 1;
+            act_sent.insert(*yt.key());
         }
 
         self.inner.table.sub_table.insert(sb.id, self.inner.self_id);
         self.inner
             .table
             .ack_table
-            .insert(sb.id, AtomicUsize::new(act_sent));
+            .insert(sb.id, act_sent);
     }
 }

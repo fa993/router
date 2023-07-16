@@ -1,7 +1,6 @@
 use crossbeam_queue::SegQueue;
 use crossbeam_skiplist::{SkipMap, SkipSet};
 use serde::{Serialize, Deserialize};
-use std::sync::atomic::AtomicUsize;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
@@ -92,6 +91,6 @@ impl RouterInner {
 pub struct RoutingTable {
     pub channels: SkipSet<ChannelId>,
     pub sub_table: SkipMap<PacketId, ServiceId>,
-    pub ack_table: SkipMap<PacketId, AtomicUsize>,
+    pub ack_table: SkipMap<PacketId, SkipSet<ServiceId>>,
     pub routes: SkipMap<ChannelId, SkipSet<ServiceId>>,
 }
