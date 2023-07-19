@@ -33,11 +33,11 @@ impl RouterTx {
     }
 
     pub fn add_entry(&self, for_service: ServiceId, handler: mpsc::UnboundedSender<Packet>) {
-        self.inner.sinks.insert(for_service, handler);
+        self.inner.add_entry(for_service, handler);
     }
 
     pub fn remove_entry(&self, for_service: ServiceId) {
-        self.inner.sinks.remove(&for_service);
+        self.inner.remove_entry(&for_service);
         //TODO resolve conflicts
     }
 

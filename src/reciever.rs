@@ -82,10 +82,6 @@ impl RouterRx {
         self.inner.clone()
     }
 
-    pub fn add_entry(&self, for_service: ServiceId, handler: mpsc::UnboundedSender<Packet>) {
-        self.inner.sinks.insert(for_service, handler);
-    }
-
     pub async fn recv_packets(&mut self) {
         while let Some(t) = self.pck_stream.recv().await {
             self.handle_packet(&t).await;

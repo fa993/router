@@ -85,6 +85,14 @@ impl RouterInner {
             p_type: msg_type,
         }
     }
+
+    pub(crate) fn add_entry(&self, si: ServiceId, handler: mpsc::UnboundedSender<Packet>) {
+        self.sinks.insert(si, handler);
+    }
+
+    pub(crate) fn remove_entry(&self, si: &ServiceId) {
+        self.sinks.remove(si);
+    }
 }
 
 #[derive(Debug, Default)]
